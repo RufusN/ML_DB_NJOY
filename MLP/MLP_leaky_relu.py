@@ -195,8 +195,7 @@ def main():
 
         new_T_norm = scaler_T.transform([[new_T]])  
         pred_scaled = model.predict(new_T_norm) 
-        pred_scaled = pred_scaled.squeeze()  
-        print("Prescaled output from the MLP:", pred_scaled[:3, 83])    
+        pred_scaled = pred_scaled.squeeze()   
 
         # Ensure the whole array is printed.
         np.set_printoptions(threshold=np.inf)
