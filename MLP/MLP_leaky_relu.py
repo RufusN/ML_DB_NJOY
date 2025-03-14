@@ -197,18 +197,22 @@ def main():
         pred_scaled = model.predict(new_T_norm) 
         pred_scaled = pred_scaled.squeeze()  
         print("Prescaled output from the MLP:", pred_scaled[:3, 83])    
-        # print(scaler_spec.scale_)
-        print(pred_scaled.shape)
-        print(np.shape(scaler_spec.mean_))
 
         # Ensure the whole array is printed.
         np.set_printoptions(threshold=np.inf)
 
-        with open("scaler_stats.txt", "w") as f:
+        with open("spec_stats.txt", "w") as f:
             f.write("Scaler Spec Scale:\n")
             f.write(np.array2string(scaler_spec.scale_, separator=', '))
             f.write("\n\nScaler Spec Mean:\n")
             f.write(np.array2string(scaler_spec.mean_, separator=', '))
+
+        with open("T_stats.txt", "w") as f:
+            f.write("T Scale:\n")
+            f.write(np.array2string(scaler_T.scale_, separator=', '))
+            f.write("\n\nT Mean:\n")
+            f.write(np.array2string(scaler_T.mean_, separator=', '))
+        
 
 
 
