@@ -106,7 +106,7 @@ def main():
     # -----------------------
     # 1. Load data
     # -----------------------
-    data_directory = '/Volumes/T7 Shield/T_800_1200_data/3x170_spectrograms'
+    data_directory = '/Volumes/T7 Shield/T_800_1200_data/new_170'
 
     T, real_imag, file_list, time_bins_ref, freq_ref, test_Ts = load_data_from_h5(data_directory)
     print(f"Files processed: {len(file_list)}")
@@ -115,12 +115,6 @@ def main():
     N, h, w, c = real_imag.shape 
     num_pixels = h * w * c 
     real_imag_flat = real_imag.reshape(N, num_pixels)
-    spec_mean, spec_std = np.mean(real_imag_flat), np.std(real_imag_flat, ddof=0)
-    T_mean, T_std = np.mean(T), np.std(T, ddof=0)
-
-    with open("spectrogram_stats.txt", "w") as f:
-        f.write(f"Spectrogram values: mean={spec_mean}, std={spec_std}\n")
-        f.write(f"T values: mean={T_mean}, std={T_std}\n")
 
     scaler_T = StandardScaler()
     T_norm = scaler_T.fit_transform(T)
@@ -197,23 +191,11 @@ def main():
         pred_scaled = model.predict(new_T_norm) 
         pred_scaled = pred_scaled.squeeze()   
 
-        # Ensure the whole array is printed.
-        np.set_printoptions(threshold=np.inf)
-
-        with open("spec_stats.txt", "w") as f:
-            f.write("Scaler Spec Scale:\n")
-            f.write(np.array2string(scaler_spec.scale_, separator=', '))
-            f.write("\n\nScaler Spec Mean:\n")
-            f.write(np.array2string(scaler_spec.mean_, separator=', '))
-
-        with open("T_stats.txt", "w") as f:
-            f.write("T Scale:\n")
-            f.write(np.array2string(scaler_T.scale_, separator=', '))
-            f.write("\n\nT Mean:\n")
-            f.write(np.array2string(scaler_T.mean_, separator=', '))
-        
-
-
+        with h5py.File("spec_scalers.h5", "w") as hf:
+            hf.create_dataset("spec_scale", data=scaler_spec.scale_)
+            hf.create_dataset("spec_mean", data=scaler_spec.mean_)
+            hf.create_dataset("T_scale", data=scaler_T.scale_)
+            hf.create_dataset("T_mean", data=scaler_T.mean_)
 
         # Inverse scale
         pred_scaled_flat = (pred_scaled.reshape(1, -1)) 
