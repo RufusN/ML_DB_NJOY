@@ -294,12 +294,12 @@ def main():
 
     padded_Base_E, padded_sig = load_temperature(test_temp, Base_E, pad, E_min, E_max, file_path=r'/Volumes/T7 Shield/T_800_1200_data/800_1200')
 
-    E_indices = [i for i in range(4,338,1)]
+    E_indices = [i for i in range(4,342,1)]
     results = []
     for E_idx in E_indices:
         seg_indices, local_indices = mapSegIdx(E_idx, step_samps, window_samps)
 
-        model = load_model('../MLP/best_model_real_imag.keras', compile = False)
+        model = load_model('../MLP/3x170_950_1050_model.keras', compile = False)
 
         # compare_full_vs_partial(model,input_data,scaler_T,scaler_spec,seg_indices)
 
