@@ -106,7 +106,7 @@ def main():
     # -----------------------
     # 1. Load data
     # -----------------------
-    data_directory = '/Volumes/T7 Shield/T_800_1200_data/new_170'
+    data_directory = '/Volumes/T7 Shield/T_800_1200_data/3x170_spectrograms'
 
     T, real_imag, file_list, time_bins_ref, freq_ref, test_Ts = load_data_from_h5(data_directory)
     print(f"Files processed: {len(file_list)}")
