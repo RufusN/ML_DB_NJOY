@@ -5,7 +5,7 @@ import h5py
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers, models, regularizers
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
@@ -72,6 +72,30 @@ def load_data_from_h5(directory):
 
 def log_ae_loss(y_true, y_pred, epsilon=1e-16):
     return tf.reduce_mean(tf.math.log(1.0 + tf.abs(y_pred - y_true) + epsilon))
+
+# -----------------------
+# Custom callback to measure inference time and compute a composite metric
+# -----------------------
+class InferenceTimeCallback(tf.keras.callbacks.Callback):
+    def __init__(self, sample_input, lambda_weight=0.01):
+        """
+        sample_input: a small batch from validation data on which inference time is measured.
+        lambda_weight: weight to balance the contribution of inference time in the combined metric.
+        """
+        super(InferenceTimeCallback, self).__init__()
+        self.sample_input = sample_input
+        self.lambda_weight = lambda_weight
+
+    def on_epoch_end(self, epoch, logs=None):
+        logs = logs or {}
+        start_time = time.perf_counter()
+        _ = self.model.predict(self.sample_input, verbose=0)
+        inference_time = time.perf_counter() - start_time
+        avg_inference_time = inference_time / self.sample_input.shape[0]
+        # Add inference time and combined metric to logs
+        logs['inference_time'] = avg_inference_time
+        logs['val_combined'] = logs.get('val_loss', 0) + self.lambda_weight * avg_inference_time
+        print(f"Epoch {epoch+1}: Inference time = {avg_inference_time:.6f} sec, Combined metric = {logs['val_combined']:.6f}")
 
 # -----------------------
 # Main: Data loading, model tuning, and inference time measurement
@@ -142,25 +166,29 @@ def main():
         return model
 
     # -----------------------
-    # Create a KerasTuner Hyperband tuner
+    # Create a KerasTuner Hyperband tuner using the composite metric
     # -----------------------
     tuner = kt.Hyperband(
         build_model,
-        objective='val_loss',
+        objective=kt.Objective("val_combined", direction="min"),
         max_epochs=30,
         factor=3,
         directory='keras_tuner_dir',
         project_name='mlp_inference_tuning'
     )
 
-    # Early stopping callback to be used during tuning
+    # Early stopping callback
     early_stop = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True, verbose=1)
 
-    # Run the search
+    # Prepare a small sample from the validation set for inference time measurement
+    sample_input_for_callback = T_val[:10]
+    inference_time_callback = InferenceTimeCallback(sample_input=sample_input_for_callback, lambda_weight=0.01)
+
+    # Run the search with the custom callback
     tuner.search(T_train, spec_train,
                  epochs=30,
                  validation_data=(T_val, spec_val),
-                 callbacks=[early_stop],
+                 callbacks=[early_stop, inference_time_callback],
                  verbose=1)
 
     # Retrieve the best hyperparameters and best model
@@ -171,7 +199,7 @@ def main():
         print(f"  {key}: {value}")
 
     # -----------------------
-    # Measure inference time of the best model
+    # Measure inference time of the best model (final evaluation)
     # -----------------------
     sample_input = T_val[:10]
     start_time = time.perf_counter()
