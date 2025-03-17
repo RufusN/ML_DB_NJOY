@@ -249,11 +249,6 @@ def read_spectrogram_h5(h5_filepath):
     return time_bins, frequencies, spectrogram_complex
 
 def load_data_from_h5(directory):
-    """
-    Loads the real and imaginary parts of the spectrogram from each .h5 file.
-    Expects shape (10, 1940).
-    Returns T_values, real+imag arrays, file_list, and reference axes.
-    """
     T_values = []
     real_imag_list = []
     file_list = []
@@ -292,16 +287,6 @@ def load_data_from_h5(directory):
 
 def build_real_imag_model(input_shape, output_shape, l2_reg=2.8481322549009912e-05, dropout_rate=0.0020318876620834536, leaky_relu_alpha=0.22269697031998914
 ):
-    """
-    Builds a regularized model with Dropout, L2 regularization, and Leaky ReLU activations.
-    
-    Parameters:
-    - input_shape: Tuple, shape of the input (e.g., (1,))
-    - output_shape: Tuple, desired output shape 
-    - l2_reg: Float, L2 regularization factor
-    - dropout_rate: Float, Dropout rate between 0 and 1
-    - leaky_relu_alpha: Float, negative slope coefficient for Leaky ReLU
-    """
     T_input = layers.Input(shape=input_shape, name='T_input')
     
     x = layers.Dense(9, 
