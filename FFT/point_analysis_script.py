@@ -17,7 +17,6 @@ from tensorflow.keras import layers, models, regularizers
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-import matplotlib.pyplot as plt
 from tensorflow.keras.layers import LeakyReLU
 from tensorflow.keras.saving import register_keras_serializable
 
@@ -31,7 +30,6 @@ def read_spectrogram_h5(h5_filepath):
         frequencies = h5f['frequencies'][:]
         spectrogram_real = h5f['spectrogram_real'][:]
         spectrogram_imag = h5f['spectrogram_imag'][:]
-    # Combine real and imaginary parts into a complex array
     spectrogram_complex = spectrogram_real + 1j * spectrogram_imag
     print("Spectrogram shape:", np.shape(spectrogram_complex))
     return time_bins, frequencies, spectrogram_complex
@@ -73,7 +71,7 @@ def load_base(E_min, E_max):
         Base_xs = Base_xs[sort_idx]
 
         print("Length of Base Energy Grid: ", len(Base_E))
-        fs = sampling_size = len(Base_E)
+        fs = len(Base_E)
     return Base_E, Base_xs, fs
 
 def load_temperature(test_temp, Base_E, pad, E_min, E_max, file_path):    
@@ -157,18 +155,11 @@ def get_spectrogram_output(model, input_data, scaler_T, scaler_spec, seg_indices
     input_data = T_norm
 
     desired_indices = seg_indices
-    pred_scaled = predict_subset(model, input_data, desired_indices, h, w, c)
+    pred_scaled, desired_indices = predict_subset(model, input_data, desired_indices, h, w, c)
     pred_scaled = np.array(pred_scaled)
 
     pred_scaled = pred_scaled.squeeze() 
     pred_scaled_flat = pred_scaled.reshape(1, -1)
-
-    desired_indices = []
-    for f in range(h):
-        for t in seg_indices:
-            for ch in range(c):
-                desired_indices.append(f * (w * c) + t * c + ch)
-    desired_indices = np.array(desired_indices) 
 
     pred_unscaled_flat = pred_scaled_flat * scaler_spec.scale_[desired_indices] + scaler_spec.mean_[desired_indices]
     pred_unscaled = pred_unscaled_flat.reshape(h, slice_length, c)  
@@ -189,8 +180,8 @@ def predict_subset(model, input_data, seg_indices, h, w, c):
     
     # Get the Dense layer that maps the 16 latent nodes to the flattened spectrogram.
     output_dense_layer = model.layers[3]
-    W = output_dense_layer.kernel  # Shape: (16, 163944)
-    b = output_dense_layer.bias    # Shape: (163944,)
+    W = output_dense_layer.kernel  
+    b = output_dense_layer.bias   
     
     desired_indices = []
     for f in range(h):
@@ -201,13 +192,12 @@ def predict_subset(model, input_data, seg_indices, h, w, c):
     # Convert desired_indices to a TensorFlow constant
     desired_indices = tf.constant(desired_indices, dtype=tf.int32)
     
-    # Gather the corresponding columns from the dense layer weights and bias.
-    W_subset = tf.gather(W, desired_indices, axis=1)  # New shape: (16, number_of_selected_neurons)
-    b_subset = tf.gather(b, desired_indices)          # New shape: (number_of_selected_neurons,)
+    W_subset = tf.gather(W, desired_indices, axis=1)  
+    b_subset = tf.gather(b, desired_indices)          
 
     outputs = tf.matmul(hidden_activations, W_subset) + b_subset 
     outputs_reshaped = tf.reshape(outputs, (-1, h, len(seg_indices), c))
-    return outputs_reshaped  
+    return outputs_reshaped, desired_indices 
 
 def point_reconstruction(spectrogram, window_samps, step_samps, local_indices):
     hann_window = hann(window_samps)
@@ -219,9 +209,6 @@ def point_reconstruction(spectrogram, window_samps, step_samps, local_indices):
 
     for i in range(len(reconstructed_segments)):
         constructed_xs += reconstructed_segments[i][local_indices[i]]
-        # print(reconstructed_segments[i][local_indices[i]])
-    # print(reconstructed_segments[0])
-    # print(reconstructed_segments[1])
 
     scaling_factor = np.sum(hann_window**2) / step_samps
     constructed_xs /= scaling_factor
@@ -233,9 +220,11 @@ def analyse(pad, padded_Base_E, padded_sig, E_indices, results):
     E_indices = np.array(E_indices)
     rel_error = np.abs(results - padded_sig[E_indices]) / np.abs(padded_sig[E_indices]) * 100
     print('Relative_Errors:', rel_error)
+    print('Relative Max:', np.max(rel_error))
+    print('Relative Mean:', np.mean(rel_error))
 
     plt.figure(figsize=(8, 5))
-    plt.plot(padded_Base_E, padded_sig, label="Original Signal", lw=2)
+    plt.plot(padded_Base_E[pad:-pad], padded_sig[pad:-pad], label="Original Signal", lw=2)
     plt.plot((padded_Base_E)[E_indices], results, 'ro', markersize=2, label="Reconstructed Point")
     plt.xlabel("padded_Base_E")
     plt.ylabel("padded_sig")
@@ -246,6 +235,18 @@ def analyse(pad, padded_Base_E, padded_sig, E_indices, results):
     plt.yscale("log")
     plt.show()
 
+    plt.figure(figsize=(8, 5))
+    plt.plot(E_indices, rel_error, marker='o', linestyle='-', color='r', label='Relative Error (%)')
+    plt.xlabel("Energy Indices")
+    plt.ylabel("Error (%)")
+    plt.title("Relative Error vs. E_indices")
+    plt.grid(True)
+    plt.legend()
+    plt.show()
+
+
+        
+
     return None
 
 def log_ae_loss(y_true, y_pred, epsilon=1e-16):
@@ -253,59 +254,26 @@ def log_ae_loss(y_true, y_pred, epsilon=1e-16):
 
 def main():
 
+    with h5py.File("../MLP/spec_scalers.h5", "r") as hf:
+        spec_scale = hf["spec_scale"][:]
+        spec_mean  = hf["spec_mean"][:]
+        T_scale    = hf["T_scale"][:]
+        T_mean     = hf["T_mean"][:]
+
     scaler_spec = StandardScaler()
+    scaler_spec.scale_ = spec_scale
+    scaler_spec.mean_  = spec_mean
+    scaler_spec.var_   = scaler_spec.scale_ ** 2
+    scaler_spec.n_features_in_ = scaler_spec.scale_.size
+    scaler_spec.n_samples_seen_ = 1  
+
     scaler_T = StandardScaler()
-
-    with open("/Users/ru/FFT/Resonance/MLP_scripts/MLP_non_uniform/spectrogram_stats.txt", "r") as f:
-        lines = f.read().splitlines()
-
-    t_parts = lines[1].split(":")[1].split(",")
-    mean_t = float(t_parts[0].split("=")[1])
-    std_t = float(t_parts[1].split("=")[1])
-    scaler_T.mean_ = np.array([mean_t])
-    scaler_T.scale_ = np.array([std_t])
-    scaler_T.var_ = scaler_T.scale_ ** 2
-    scaler_T.n_features_in_ = 1
-
-    # Read the entire file and filter out empty lines.
-    with open("/Users/ru/FFT/Resonance/MLP_scripts/MLP_non_uniform/scaler_stats.txt", "r") as f:
-        lines = [line.strip() for line in f if line.strip() != ""]
-
-    # Find the indices of the labels.
-    scale_label = "Scaler Spec Scale:"
-    mean_label = "Scaler Spec Mean:"
-
-    try:
-        scale_idx = lines.index(scale_label)
-        mean_idx = lines.index(mean_label)
-    except ValueError as e:
-        print("Error: Could not find the required labels in the file.")
-        raise e
-
-    # Extract lines that belong to each section.
-    scale_lines = lines[scale_idx + 1 : mean_idx]
-    mean_lines = lines[mean_idx + 1 :]
-
-    # Join the lines into one string for each array.
-    scale_str = " ".join(scale_lines)
-    mean_str = " ".join(mean_lines)
-
-    # Remove any surrounding square brackets.
-    if scale_str.startswith("[") and scale_str.endswith("]"):
-        scale_str = scale_str[1:-1]
-    if mean_str.startswith("[") and mean_str.endswith("]"):
-        mean_str = mean_str[1:-1]
-
-    # Convert the strings to NumPy arrays.
-    scaler_spec_scale_array = np.fromstring(scale_str, sep=",")
-    scaler_spec_mean_array = np.fromstring(mean_str, sep=",")
-
-    # Assign the arrays to your scaler attributes.
-    scaler_spec.mean_ = scaler_spec_mean_array
-    scaler_spec.scale_ = scaler_spec_scale_array
-    scaler_spec.var_ = scaler_spec.scale_ ** 2
-    scaler_spec.n_features_in_ = scaler_spec_scale_array.size
-
+    scaler_T.scale_ = T_scale
+    scaler_T.mean_  = T_mean
+    scaler_T.var_   = scaler_T.scale_ ** 2
+    scaler_T.n_features_in_ = scaler_T.scale_.size
+    scaler_T.n_samples_seen_ = 1
+    
     # E_min = 1e4 * 1e-6 #MeV
     # E_max = 1e5 * 1e-6 #MeV
     # window_size = 0.01
@@ -326,12 +294,14 @@ def main():
 
     padded_Base_E, padded_sig = load_temperature(test_temp, Base_E, pad, E_min, E_max, file_path=r'/Volumes/T7 Shield/T_800_1200_data/800_1200')
 
-    E_indices = [i for i in range(160,181,2)]
+    E_indices = [i for i in range(4,338,1)]
     results = []
     for E_idx in E_indices:
         seg_indices, local_indices = mapSegIdx(E_idx, step_samps, window_samps)
 
         model = load_model('../MLP/best_model_real_imag.keras', compile = False)
+
+        # compare_full_vs_partial(model,input_data,scaler_T,scaler_spec,seg_indices)
 
         spectrogram = get_spectrogram_output(model, input_data, scaler_T, scaler_spec, seg_indices)
         constructed_xs = point_reconstruction(spectrogram, window_samps, step_samps, local_indices)
