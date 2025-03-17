@@ -13,13 +13,13 @@ import scipy.ndimage as ndimage
 # 1) User-defined parameters
 # ---------------------------
 
-#54x1518
+#54x1518 - old. 
 # E_min = 1e4 * 1e-6 #MeV
 # E_max = 1e5 * 1e-6 #MeV
 # window_size = 0.01
 # step_size   = 0.00075
 
-#3x172
+#3x170
 E_min = 2e4 * 1e-6 #MeV
 E_max = 2.1e4 * 1e-6 #MeV
 window_size = 0.014559
@@ -28,7 +28,7 @@ step_size   = 0.007306
 # E_min = 1e4 * 1e-6 #MeV
 # E_max = 1e6 * 1e-6 #MeV
 
-#options - 91x1522
+#options - 91x1521
 # window_size = 0.001988 
 # step_size   = 0.000666
 
@@ -179,7 +179,7 @@ for file_path in all_files:
         # 4) Save Spectrogram to HDF5
         # ---------------------------
 
-        h5_filename = f'/Volumes/T7 Shield/T_800_1200_data/3x170_spectrograms/spectrogram_T_{T_val}.h5' 
+        h5_filename = f'/Volumes/T7 Shield/T_full_data/3x170_spectrograms/spectrogram_T_{T_val}.h5' 
         with h5py.File(h5_filename, "w") as h5f:
             h5f.create_dataset("time_bins",      data=time_bins)
             h5f.create_dataset("frequencies",    data=frequencies)
