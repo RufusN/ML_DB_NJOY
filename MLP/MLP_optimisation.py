@@ -78,7 +78,7 @@ def log_ae_loss(y_true, y_pred, epsilon=1e-16):
 # -----------------------
 def main():
     # Change this to your data directory
-    data_directory = '/Volumes/T7 Shield/T_800_1200_data/3x170_spectrograms'
+    data_directory = '/Volumes/T7 Shield/T_full_data/91x1521_spectrograms'
     
     # Load data from HDF5 files
     T, real_imag, file_list, time_bins_ref, freq_ref, test_Ts = load_data_from_h5(data_directory)
@@ -111,7 +111,7 @@ def main():
     # -----------------------
     def build_model(hp):
         # Hyperparameters to tune
-        hidden_units = hp.Int('hidden_units', min_value=1, max_value=12, step=1)
+        hidden_units = hp.Int('hidden_units', min_value=1, max_value=24, step=2)
         l2_reg = hp.Float('l2_reg', min_value=1e-5, max_value=1e-2, sampling='log')
         dropout_rate = hp.Float('dropout_rate', min_value=0.0, max_value=0.5)
         leaky_relu_alpha = hp.Float('leaky_relu_alpha', min_value=0.01, max_value=0.3)

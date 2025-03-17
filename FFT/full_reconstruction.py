@@ -25,16 +25,16 @@ relative_errors_no_scale_trunc = dict()
 # step_size   = 0.00075
 
 #3x170
-E_min = 2e4 * 1e-6 #MeV
-E_max = 2.1e4 * 1e-6 #MeV
-window_size = 0.014559
-step_size   = 0.007306
+# E_min = 2e4 * 1e-6 #MeV
+# E_max = 2.1e4 * 1e-6 #MeV
+# window_size = 0.014559
+# step_size   = 0.007306
 
 #91x1533
-# E_min = 1e4 * 1e-6 #MeV
-# E_max = 1e6 * 1e-6 #MeV
-# window_size = 0.001988 
-# step_size   = 0.000666 
+E_min = 1e4 * 1e-6 #MeV
+E_max = 1e6 * 1e-6 #MeV
+window_size = 0.001988 
+step_size   = 0.000666 
 
 # ---------------------------
 # 2) Load base values

@@ -29,11 +29,6 @@ def read_spectrogram_h5(h5_filepath):
     return time_bins, frequencies, spectrogram_complex
 
 def load_data_from_h5(directory):
-    """
-    Loads the real and imaginary parts of the spectrogram from each .h5 file.
-    Expects shape (10, 1940).
-    Returns T_values, real+imag arrays, file_list, and reference axes.
-    """
     T_values = []
     real_imag_list = []
     file_list = []
@@ -68,20 +63,10 @@ def load_data_from_h5(directory):
 
     T_values = np.array(T_values, dtype=np.float32).reshape(-1, 1)
     real_imag_data = np.array(real_imag_list, dtype=np.float32)
-    return T_values, real_imag_data, file_list, time_bins_ref, freq_ref, test_Ts
+    return T_values, real_imag_data, file_list, time_bins_ref, freq_ref, test_Ts, T_min, T_max
 
-def build_real_imag_model(input_shape, output_shape, l2_reg=2.8481322549009912e-05, dropout_rate=0.0020318876620834536, leaky_relu_alpha=0.22269697031998914
+def build_real_imag_model(input_shape, output_shape, l2_reg=1.1429734345638328e-05, dropout_rate=0.04137934594945053, leaky_relu_alpha=0.07841048547679123
 ):
-    """
-    Builds a regularized model with Dropout, L2 regularization, and Leaky ReLU activations.
-    
-    Parameters:
-    - input_shape: Tuple, shape of the input (e.g., (1,))
-    - output_shape: Tuple, desired output shape 
-    - l2_reg: Float, L2 regularization factor
-    - dropout_rate: Float, Dropout rate between 0 and 1
-    - leaky_relu_alpha: Float, negative slope coefficient for Leaky ReLU
-    """
     T_input = layers.Input(shape=input_shape, name='T_input')
     
     x = layers.Dense(9, 
@@ -107,9 +92,9 @@ def main():
     # -----------------------
     # 1. Load data
     # -----------------------
-    data_directory = '/Volumes/T7 Shield/T_800_1200_data/3x170_spectrograms'
+    data_directory = '/Volumes/T7 Shield/T_full_data/91x1521_spectrograms'
 
-    T, real_imag, file_list, time_bins_ref, freq_ref, test_Ts = load_data_from_h5(data_directory)
+    T, real_imag, file_list, time_bins_ref, freq_ref, test_Ts, T_min, T_max = load_data_from_h5(data_directory)
     print(f"Files processed: {len(file_list)}")
     print("Real+Imag shape:", real_imag.shape)
 
@@ -128,7 +113,7 @@ def main():
     # 4. Train/test split
     # -----------------------
     T_train, T_test, spec_train, spec_test = train_test_split(
-        T_norm, real_imag_scaled, test_size=0.01, random_state=42
+        T_norm, real_imag_scaled, test_size=0.001, random_state=42
     )
 
     # -----------------------
@@ -143,7 +128,7 @@ def main():
     # -----------------------
 
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.00177225433944805),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.03332283580166981),
         loss=log_ae_loss,
         metrics=['mse', 'mae']
     )
@@ -152,7 +137,7 @@ def main():
     # 7. Callbacks
     # -----------------------
     early_stop = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True, verbose=1)
-    checkpoint = ModelCheckpoint('best_model_real_imag.keras', monitor='val_loss', save_best_only=True, verbose=1)
+    checkpoint = ModelCheckpoint(f'91x1521_{T_min}_{T_max}.keras', monitor='val_loss', save_best_only=True, verbose=1)
     lr_reduce = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, min_lr=1e-6, verbose=1)
 
     # -----------------------
@@ -192,7 +177,7 @@ def main():
         pred_scaled = model.predict(new_T_norm) 
         pred_scaled = pred_scaled.squeeze()   
 
-        with h5py.File("spec_scalers.h5", "w") as hf:
+        with h5py.File(f"91x1521_{T_min}_{T_max}_spec_scalers.h5", "w") as hf:
             hf.create_dataset("spec_scale", data=scaler_spec.scale_)
             hf.create_dataset("spec_mean", data=scaler_spec.mean_)
             hf.create_dataset("T_scale", data=scaler_T.scale_)
@@ -208,7 +193,7 @@ def main():
         # -----------------------
         # 11. Save results to HDF5
         # -----------------------
-        output_filename = f"../ML_prediction/predicted_spectrogram_{new_T}_real_imag.h5"
+        output_filename = f"../../ML_prediction/predicted_spectrogram_{new_T}_real_imag.h5"
         with h5py.File(output_filename, "w") as h5f:
             h5f.create_dataset("time_bins", data=time_bins_ref)
             h5f.create_dataset("frequencies", data=freq_ref)
