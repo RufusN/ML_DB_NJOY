@@ -104,9 +104,6 @@ def load_data(T_test, Eidx, E_min, E_max, base_E):
                 data = pd.read_hdf(file_path, key="xs_data", compression="gzip")
                 
                 # Check if the test_temp exists in the dataset
-                print("Checking", T_test, data["T"].values)
-                for i in data["T"].values:
-                    print(i)
                 if T_test not in data["T"].values:
                     continue
                 
@@ -212,7 +209,6 @@ def main():
             true_xs = load_data(Tval, Eidx, E_min, E_max, base_E)
             xs_from_table(temps[:1], Eidx[:1], W0,b0,alpha, W_tab,b_tab, T_scale,T_mean)
             pred = xs_from_table(temps, Eidx, W0,b0,alpha, W_tab,b_tab, T_scale,T_mean).numpy()
-            print(len(true_xs), len(pred), true_xs[0], pred[0])
             plot_relative_error(base_E[Eidx], true_xs, pred, Tval)
 
 if __name__=='__main__':
