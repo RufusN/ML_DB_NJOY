@@ -1,3 +1,4 @@
+#input: python whole_pipeline_temp.py --mode speed --batch 20000000 --chunk 10000000 --tmin 1000.0 --tmax 1000.0 --precision float32
 #!/usr/bin/env python3
 """
 gpu_full_pipeline.py — Batched GPU inference + direct inverse DFT reconstruction
@@ -20,6 +21,7 @@ from scipy.signal.windows import hann
 from sklearn.preprocessing import StandardScaler
 from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
+from tensorflow.keras import mixed_precision
 
 # ─── Global Constants ─────────────────────────────────────────────────────
 E_MIN = 1e4 * 1e-6  # MeV
@@ -93,34 +95,37 @@ def load_weights():
 
 
 # Use decorator to compile into graph for GPU
-@tf.function
+@tf.function(experimental_compile=True)
 def reconstruct_batch(T_batch: tf.Tensor, E_batch: tf.Tensor) -> tf.Tensor:
     T_norm = (T_batch - T_mean) / T_scale
-    hidden = tf.nn.leaky_relu(tf.matmul(tf.expand_dims(T_norm,1), W0) + b0, alpha)
+    hidden = tf.nn.leaky_relu(tf.matmul(tf.expand_dims(T_norm, 1), W0) + b0, alpha)
 
-    first = tf.cast(tf.math.ceil((E_batch - WINDOW_SAMPS)/STEP_SAMPS - 0.5), tf.int32)
+    first = tf.cast(tf.math.ceil((E_batch - WINDOW_SAMPS) / STEP_SAMPS - 0.5), tf.int32)
     segs = first[:, None] + SEG_OFF[None, :]
 
     N = tf.shape(T_batch)[0]
     f_off = tf.reshape(tf.range(H, dtype=tf.int32) * W_TIME * C, [1, H, 1, 1])
     segs_e = tf.reshape(segs, [N, 1, -1, 1])
-    ch_off = tf.reshape(tf.range(C, dtype=tf.int32), [1,1,1,C])
+    ch_off = tf.reshape(tf.range(C, dtype=tf.int32), [1, 1, 1, C])
     flat_idx = tf.reshape(f_off + segs_e * C + ch_off, [N, -1])
 
     W_flat = tf.gather(W_dec, flat_idx, axis=1)
-    W_sub = tf.transpose(W_flat, [1,0,2])
     b_sub = tf.gather(b_dec, flat_idx, axis=0)
 
-    spec_scaled = tf.einsum('nl,nlf->nf', hidden, W_sub) + b_sub
+    # Corrected einsum equation: 'nl,lnk->nk'
+    spec_scaled = tf.einsum('nl,lnk->nk', hidden, W_flat) + b_sub
+
     scale_flat = tf.gather(spec_scale, flat_idx)
     mean_flat = tf.gather(spec_mean, flat_idx)
 
     spec = spec_scaled * scale_flat + mean_flat
     spec = tf.reshape(spec, [N, H, -1, C])
-    spec_c = tf.complex(spec[...,0], spec[...,1])
+    spec_c = tf.complex(spec[..., 0], spec[..., 1])
 
-    spec_t = tf.transpose(spec_c, [0,2,1])
-    segments = tf.signal.irfft(spec_t, fft_length=[WINDOW_SAMPS])
+    segments = tf.signal.irfft(
+        tf.transpose(spec_c, [0, 2, 1]),
+        fft_length=[WINDOW_SAMPS]
+    )
     segments *= hann_win
 
     local = (E_batch[:, None] - (segs + 1) * STEP_SAMPS) % WINDOW_SAMPS
@@ -190,11 +195,18 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', type=str, default="speed")
     parser.add_argument('--batch', type=int, default=8192)
-    parser.add_argument('--tmin', type=float, default=950.0)
-    parser.add_argument('--tmax', type=float, default=1050.0)
+    parser.add_argument('--tmin', type=float, default=1000.0)
+    parser.add_argument('--tmax', type=float, default=1000.0)
     parser.add_argument('--chunk', type=int, default=None,
                         help='Optional chunk size for batch processing')
+    parser.add_argument('--precision-policy', type=str,
+                        choices=['float16','mixed_float16','float32'],
+                        default='mixed_float16',
+                        help='Precision policy')
     args = parser.parse_args()
+
+    policy = args.precision_policy
+    mixed_precision.set_global_policy(policy)
 
     base_e = init_globals()
     load_scalers()
