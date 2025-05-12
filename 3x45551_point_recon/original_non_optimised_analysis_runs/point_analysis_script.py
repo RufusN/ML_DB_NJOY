@@ -285,7 +285,7 @@ def main():
     window_size = 0.00004628
     step_size = 0.00002314
 
-    test_temp = 1000.0
+    test_temp = 980.0
     input_data = [test_temp]
 
     Base_E, Base_xs, fs = load_base(E_min, E_max)
@@ -296,8 +296,8 @@ def main():
     padded_Base_E, padded_sig = load_temperature(test_temp, Base_E, pad, E_min, E_max, file_path=r'/Volumes/T7 Shield/T_800_1200_data/800_1200')
 
     # E_indices = [i for i in range(100,1000,100)]
-    # E_indices = [700]
-    E_indices = [i for i in range(690,710,1)]
+    E_indices = [60000]
+    # E_indices = [i for i in range(690,710,1)]
     results = []
     for E_idx in E_indices:
         seg_indices, local_indices = mapSegIdx(E_idx, step_samps, window_samps)
@@ -311,7 +311,7 @@ def main():
         constructed_xs = point_reconstruction(spectrogram, window_samps, step_samps, local_indices)
         results.append(constructed_xs)
         E_val = padded_Base_E[E_idx]  
-        print(constructed_xs)
+        print(constructed_xs, E_val)
 
     analyse(pad, padded_Base_E, padded_sig, E_indices, results)
 

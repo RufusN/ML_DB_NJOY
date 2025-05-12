@@ -120,8 +120,8 @@ def main():
     temps = tf.random.uniform([N], 950.0, 1050.0, dtype=tf.float32)
     eidxs = tf.random.uniform([N], 100, 90001, dtype=tf.int32)
 
-    # temps = tf.constant([1000.0], dtype=tf.float32)
-    # eidxs = tf.constant([700],    dtype=tf.int32)
+    temps = tf.constant([975.0], dtype=tf.float32)
+    eidxs = tf.constant([700],    dtype=tf.int32)
 
     # Warm‐up
     _ = reconstruct_batch(temps[:1], eidxs[:1])
@@ -129,7 +129,7 @@ def main():
     # Timed run
     t0 = time.perf_counter()
     xs = reconstruct_batch(temps, eidxs)
-    # print(xs)
+    print(xs)
     dt = (time.perf_counter() - t0) * 1e6 / tf.cast(N, tf.float32)  # µs/point
     print(f"{N:,} points → {dt:.2f} µs/point")
 
