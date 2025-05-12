@@ -39,20 +39,43 @@ except Exception:
 
 # ───────────── constants from training ─────────────
 H, W_TIME, C = 3, 45551, 2            # spectrogram dims in the decoder
-WINDOW_SAMPS = 2048                   # MUST match training STFT
-STEP_SAMPS   =  512                   # ^
+WINDOW_SAMPS = 4                      # MUST match training STFT
+STEP_SAMPS   = WINDOW_SAMPS//2        # ^
 GRID_PATH    = "base_energy_grid.h5"
 SCALER_PATH  = "3x45551_950_1050_spec_scalers.h5"
 MODEL_PATH   = "3x45551_950_1050.keras"
 
 # ───────────── helpers ─────────────
 
-def mapSegIdx(E_idx: int):
-    n_over = WINDOW_SAMPS // STEP_SAMPS
-    first_seg = int(np.ceil((E_idx - WINDOW_SAMPS) / STEP_SAMPS - 0.5))
-    seg_idxs = np.arange(first_seg, first_seg + n_over, dtype=int)
-    local = (E_idx - seg_idxs * STEP_SAMPS).tolist()
-    return seg_idxs, local
+def mapSegIdx(energy_idx: int,
+              step_samps: int = STEP_SAMPS,
+              window_samps: int = WINDOW_SAMPS
+) -> tuple[np.ndarray, list[int]]:
+    """
+    Exactly your working- script logic:
+
+      n_overlaps = window_samps/step_samps
+      seg_idx    = ceil((energy_idx - window_samps)/step_samps - 1 + 0.5)
+      for each overlap:
+        append seg_idx,
+        seg_idx += 1,
+        local = energy_idx - (seg_idx*step_samps)
+    """
+    n_overlaps = int(window_samps // step_samps)
+    seg_idxs   = []
+    local_idxs = []
+
+    # the “-1 + 0.5” is crucial — it was dropped in the earlier NumPy versions
+    seg_idx = int(np.ceil((energy_idx - window_samps) / step_samps - 1 + 0.5))
+
+    for _ in range(n_overlaps):
+        seg_idxs.append(seg_idx)
+        seg_idx += 1
+        start = seg_idx * step_samps
+        local_idxs.append(energy_idx - start)
+
+    return np.array(seg_idxs, dtype=int), local_idxs
+
 
 
 def flat_idxs(seg_idxs: np.ndarray) -> np.ndarray:
@@ -90,6 +113,7 @@ def reconstruct_single(T: float, E_idx: int,
 
     # 2) gather decoder slice
     seg_idxs, local = mapSegIdx(E_idx)
+    print(local,seg_idxs)
     fidxs = flat_idxs(seg_idxs)
     W_small, b_small = get_sparse_decoder(W_dec, b_dec, tuple(fidxs))
 

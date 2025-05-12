@@ -130,7 +130,7 @@ def main():
     W, b = dense.kernel, dense.bias
 
     # --- generate random combos -------------------------------------------
-    n_tests = 50000
+    n_tests = 5000
     temps  = np.random.uniform(950, 1050,  size=n_tests)
     e_idxs = np.random.randint(100, 45_001, size=n_tests)  # inclusive upper bound
 

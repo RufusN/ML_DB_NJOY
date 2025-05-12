@@ -201,6 +201,7 @@ def predict_subset(model, input_data, seg_indices, h, w, c):
 
 def point_reconstruction(spectrogram, window_samps, step_samps, local_indices):
     hann_window = hann(window_samps)
+    print(window_samps, step_samps)
     reconstructed_segments = [
         np.fft.irfft(spectrogram[:, t], n=window_samps) * hann_window
         for t in range(spectrogram.shape[1])
@@ -294,10 +295,13 @@ def main():
 
     padded_Base_E, padded_sig = load_temperature(test_temp, Base_E, pad, E_min, E_max, file_path=r'/Volumes/T7 Shield/T_800_1200_data/800_1200')
 
-    E_indices = [i for i in range(100,1000,100)]
+    # E_indices = [i for i in range(100,1000,100)]
+    # E_indices = [700]
+    E_indices = [i for i in range(690,710,1)]
     results = []
     for E_idx in E_indices:
         seg_indices, local_indices = mapSegIdx(E_idx, step_samps, window_samps)
+        print(seg_indices, local_indices)
 
         model = load_model('./3x45551_950_1050.keras', compile = False)
 
@@ -307,6 +311,7 @@ def main():
         constructed_xs = point_reconstruction(spectrogram, window_samps, step_samps, local_indices)
         results.append(constructed_xs)
         E_val = padded_Base_E[E_idx]  
+        print(constructed_xs)
 
     analyse(pad, padded_Base_E, padded_sig, E_indices, results)
 

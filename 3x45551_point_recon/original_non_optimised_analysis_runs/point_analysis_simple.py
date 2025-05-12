@@ -138,7 +138,7 @@ def main():
     window_size  = 0.00004628             # fraction of Base_E length
     step_size    = 0.00002314
     test_temp    = 1000.0                # K
-    E_idx        = 500                   # energy‑grid index to reconstruct
+    E_idx        = 700                   # energy‑grid index to reconstruct
     data_dir     = r"/Volumes/T7 Shield/T_800_1200_data/800_1200"
 
     # --- constant artefacts --------------------------------------------------
@@ -175,6 +175,8 @@ def main():
                                    scaler_T, scaler_spec, seg_indices)
     xs_val = point_reconstruction(spect, window_samps,
                                   step_samps, local_indices)
+    
+    print(xs_val)
 
     print(f"Reconstructed XS @ index {E_idx} (E = {padded_E[E_idx]:.3e} MeV): "
           f"{xs_val:.6e}")
