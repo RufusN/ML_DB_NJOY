@@ -144,12 +144,24 @@ def batch_query(table_h5: str, T_arr: np.ndarray, E_arr: np.ndarray, use_gpu: bo
         hidden = tf.nn.leaky_relu(tf.matmul(((T_tf - T_mean)/T_scale)[:,None], W0) + b0, alpha)
         W_sel = tf.gather(W_tab, tf.constant(E_arr, dtype=tf.int32))
         b_sel = tf.gather(b_tab, tf.constant(E_arr, dtype=tf.int32))
-        start = time.perf_counter()
+
+    start = time.perf_counter()
+
+    with tf.device(device):
         xs = tf.matmul(hidden, W_sel, transpose_b=True) + b_sel
-        dur = time.perf_counter() - start
-    xs_np = xs.numpy()
-    print(f"[batch] {xs_np.shape} on {device} in {dur*1e3:.1f} ms → {dur/xs_np.size*1e6:.8f} µs/value")
-    return xs.numpy()
+        xs_np = xs.numpy()                     # ← forces GPU → CPU sync
+
+    dur = time.perf_counter() - start          # stop after sync completes
+    print(f"[batch] {xs_np.shape} on {device} in {dur*1e3:.6f} ms "
+        f"→ {dur/xs_np.size*1e6:.6f} µs/value")
+    return xs_np
+
+    #     start = time.perf_counter()
+    #     xs = tf.matmul(hidden, W_sel, transpose_b=True) + b_sel
+    #     dur = time.perf_counter() - start
+    # xs_np = xs.numpy()
+    # print(f"[batch] {xs_np.shape} on {device} in {dur*1e3:.1f} ms → {dur/xs_np.size*1e6:.8f} µs/value")
+    # return xs.numpy()
 
 # ═════════════════ CLI ═══════════════════════════════════════════════════
 
