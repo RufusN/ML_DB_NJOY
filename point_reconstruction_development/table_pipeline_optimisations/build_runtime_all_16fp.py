@@ -116,7 +116,7 @@ def batch_query(table_h5: str, T_arr, E_arr, use_gpu: bool):
         start = time.perf_counter()
         xs_np = (tf.matmul(hidden, W_sel) + b_sel).numpy()
         dur = time.perf_counter() - start
-    print(f"[batch] {xs_np.shape} on {device} in {dur*1e3:.1f} ms → {dur/xs_np.size*1e6:.2f} µs/value")
+    print(f"[batch] {xs_np.shape} on {device} in {dur*1e3:.1f} ms → {dur/xs_np.size*1e6:6f} µs/value")
     return xs_np
 
 # ═════════════ tiny CLI ═════════════════════════════════════════════════=
