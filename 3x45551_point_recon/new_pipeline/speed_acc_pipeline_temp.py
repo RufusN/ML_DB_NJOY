@@ -24,17 +24,22 @@ import matplotlib.pyplot as plt
 from tensorflow.keras import mixed_precision
 
 # ─── Global Constants ─────────────────────────────────────────────────────
+#E_MIN = 1e4 * 1e-6  # MeV
+#E_MAX = 1e5 * 1e-6  # MeV
+#WINDOW_SIZE = 0.000398
+#STEP_SIZE = 0.000199
+#H, W_TIME, C = 3, 5313, 2
 E_MIN = 1e4 * 1e-6  # MeV
-E_MAX = 1e5 * 1e-6  # MeV
-WINDOW_SIZE = 0.000398
-STEP_SIZE = 0.000199
-H, W_TIME, C = 3, 5313, 2
+E_MAX = 1e6 * 1e-6  # MeV
+WINDOW_SIZE = 0.00004744
+STEP_SIZE = 0.00002314
+H, W_TIME, C = 3, 45551, 2
 
 # Paths (do not change)
 BASE_FILE_PATH = r'/mnt/d/dT_0.1K_200K_3500K_compressed/capture_xs_data_0.h5'
 WEIGHTS_H5 = "model_weights.h5"
-SCALER_PATH = "spec_scalers_3_5313.h5"
-MODEL_PATH = '/mnt/c/Users/marti/Documents/Martin/SCONE/code_stuff/Scripts/DB_sliced/ML_DB_sliced_pipeline/3x45551_point_recon/martin_pipeline/best_model_3_5313.h5'
+SCALER_PATH = "3x45551_950_1050_spec_scalers.h5"
+MODEL_PATH = '3x45551_950_1050.h5'
 TEMP_DATA_DIR = r'/mnt/d/800_1200'
 
 # Derived globals (init in main)
@@ -186,6 +191,7 @@ def analyse(base_e, reconstructed, temps, eidxs, file_dir):
     plt.figure(figsize=(8,5))
     plt.plot(base_e[idxs_sorted-PAD], rel_err_sorted, marker='o', linestyle='-')
     plt.xscale('log'); plt.xlabel('Energy Index'); plt.ylabel('Relative Error (%)')
+    plt.yscale('log')
     plt.title('Relative Error vs Energy'); plt.grid(True)
     plt.savefig('./data_reconstruct/relative_error.png', dpi=200)
     plt.close()

@@ -252,7 +252,7 @@ def log_ae_loss(y_true, y_pred, epsilon=1e-16):
     return tf.reduce_mean(tf.math.log(1.0 + tf.abs(y_pred - y_true) + epsilon))
 
 def main():
-    with h5py.File("/mnt/c/Users/marti/Documents/Martin/SCONE/code_stuff/Scripts/DB_sliced/ML_DB_sliced_pipeline/3x45551_point_recon/martin_pipeline/spec_scalers_3_5313.h5", "r") as hf:
+    with h5py.File("/mnt/c/Users/marti/Documents/Martin/SCONE/code_stuff/Scripts/DB_sliced/ML_DB_sliced_pipeline/3x45551_point_recon/new_pipeline/3x45551_950_1050_spec_scalers.h5", "r") as hf:
         spec_scale = hf["spec_scale"][:]
         spec_mean  = hf["spec_mean"][:]
         T_scale    = hf["T_scale"][:]
@@ -273,13 +273,18 @@ def main():
     scaler_T.n_samples_seen_ = 1
     
     #3x5313 - small model (final)
+    #E_min = 1e4 * 1e-6  # MeV
+    #E_max = 1e5 * 1e-6  # MeV
+    #window_size = 0.000398
+    #step_size = 0.000199
+    #h = 3
+    #w = 5313
+    #c = 2
+
     E_min = 1e4 * 1e-6  # MeV
-    E_max = 1e5 * 1e-6  # MeV
-    window_size = 0.000398
-    step_size = 0.000199
-    h = 3
-    w = 5313
-    c = 2
+    E_max = 1e6 * 1e-6  # MeV
+    window_size = 0.00004628
+    step_size = 0.00002314
 
     test_temp = 1000.0
     input_data = [test_temp]
@@ -299,7 +304,7 @@ def main():
 
         seg_indices, local_indices = mapSegIdx(E_idx, step_samps, window_samps)
 
-        model = load_model('/mnt/c/Users/marti/Documents/Martin/SCONE/code_stuff/Scripts/DB_sliced/ML_DB_sliced_pipeline/3x45551_point_recon/martin_pipeline/best_model_3_5313.h5', compile = False)
+        model = load_model('/mnt/c/Users/marti/Documents/Martin/SCONE/code_stuff/Scripts/DB_sliced/ML_DB_sliced_pipeline/3x45551_point_recon/new_pipeline/3x45551_950_1050.h5', compile = False)
 
         # compare_full_vs_partial(model,input_data,scaler_T,scaler_spec,seg_indices)
 

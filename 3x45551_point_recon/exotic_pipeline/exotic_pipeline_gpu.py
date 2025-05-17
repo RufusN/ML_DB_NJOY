@@ -122,22 +122,54 @@ def reconstruct_full(T_batch, E_batch):
     return xs
 
 # Subroutines for table backend ---------------------------------------------
-def load_table(table_h5):
-    with h5py.File(table_h5,'r') as hf:
-        W_tab   = tf.constant(hf['W_tab'][:])
-        b_tab   = tf.constant(hf['b_tab'][:])
-        W0      = tf.constant(hf['W0'][:])
-        b0      = tf.constant(hf['b0'][:])
-        alpha   = float(hf['alpha'][()])
-        T_scale = tf.constant(hf['T_scale'][:])
-        T_mean  = tf.constant(hf['T_mean'][:])
-    @tf.function#(experimental_compile=True)
-    def query_table(T_batch, E_batch):
-        T_norm = (T_batch - T_mean) / T_scale
-        hidden = tf.nn.leaky_relu(tf.matmul(tf.expand_dims(T_norm,1), W0)+b0, alpha)
-        W_vec = tf.gather(W_tab, E_batch)
-        b_vec = tf.gather(b_tab, E_batch)
-        return tf.reduce_sum(hidden * W_vec, axis=1) + b_vec
+def load_table(table_h5: str):
+    """
+    Returns
+    -------
+    query_table :  callable(T_batch [float32], E_batch [int32]) → xs  [float32]
+    """
+
+    # ------------ common stuff (layer-0 & normalisers) ---------------
+    policy_dtype = tf.keras.mixed_precision.global_policy().compute_dtype
+    with h5py.File(table_h5, "r") as hf:
+        cast = lambda d, dt=policy_dtype: tf.constant(hf[d][:], dtype=dt)
+        W0, b0 = cast("W0"), cast("b0")
+        alpha  = float(hf["alpha"][()])
+        T_scale, T_mean = cast("T_scale"), cast("T_mean")
+
+
+        # sparse knots every K rows
+        K    = int(hf["K"][()])
+        rows = tf.constant(hf["rows"][:], dtype=tf.int32)   # (N_K,)
+        W_k  = cast("W_k")                                  # (N_K,16)
+        b_k  = cast("b_k")                                  # (N_K,)
+
+        @tf.function
+        def query_table(T_batch, E_batch):
+            # locate left / right knots -------------------------------------------------
+            seg_idx  = tf.math.floordiv(E_batch, K)                  # (N,)
+            seg_idxR = tf.minimum(seg_idx + 1, tf.shape(rows)[0] - 1)
+
+            t = tf.cast(E_batch % K, policy_dtype) / tf.cast(K, policy_dtype)
+
+            W_left  = tf.gather(W_k, seg_idx)                        # (N,16)
+            W_right = tf.gather(W_k, seg_idxR)
+            b_left  = tf.gather(b_k, seg_idx)
+            b_right = tf.gather(b_k, seg_idxR)
+
+            W_vec = W_left + tf.expand_dims(t, 1) * (W_right - W_left)
+            b_vec = b_left + t * (b_right - b_left)
+
+            # hidden layer + dot product -----------------------------------------------
+            T_norm = (T_batch - T_mean) / T_scale
+            hidden = tf.nn.leaky_relu(
+                tf.matmul(T_norm[:, None], W0) + b0, alpha
+            )
+            return tf.reduce_sum(hidden * W_vec, axis=1) + b_vec
+
+    # one warm-up call so the first real query isn’t JIT-compiled inside the timer
+    _ = query_table(tf.constant([0.0], tf.float32),
+                    tf.constant([0],  tf.int32))
     return query_table
 
 # Generic timing and accuracy ------------------------------------------------
@@ -192,11 +224,10 @@ def analyse(base_e, reconstructed, temps, eidxs, file_dir):
     plt.close()
 
     # Plot relative error (sorted)
-    sorted_idx = np.argsort(idxs)
-    idxs_sorted = idxs[sorted_idx]
-    rel_err_sorted = rel_err[sorted_idx]
+    sorted_idx = np.sort(idxs)#np.argsort(idxs)
+    rel_err_sorted = rel_err
     plt.figure(figsize=(8,5))
-    plt.plot(base_e[idxs_sorted-PAD], rel_err_sorted, marker='o', linestyle='-')
+    plt.plot(base_e[sorted_idx], rel_err_sorted, marker='o', linestyle='-')
     plt.xscale('log'); plt.xlabel('Energy Index'); plt.ylabel('Relative Error (%)')
     plt.title('Relative Error vs Energy'); plt.grid(True)
     plt.savefig('./data_reconstruct/relative_error.png', dpi=200)
@@ -217,7 +248,7 @@ def main():
     p.add_argument('--precision', dest='precision_policy',
                    choices=['float16','mixed_float16','float32'],
                    default='mixed_float16')
-    p.add_argument('--table',   type=str, default='w_table.h5',
+    p.add_argument('--table',   type=str, default='w_table_compact.h5',
                    help='Precomputed table file (for table backend)')
     args = p.parse_args()
 
@@ -228,11 +259,11 @@ def main():
     # energy indices
     if args.backend=='full':
         base_e = init_full()
-        eidxs  = tf.random.uniform([args.batch], fs-WINDOW_SAMPS, fs-PAD,
+        eidxs  = tf.random.uniform([args.batch], PAD, fs-PAD,
                                    tf.int32)
     else:
         # table backend: valid E_idxs in [0, W_TIME)
-        eidxs  = tf.random.uniform([args.batch], 4, 92763-4, tf.int32)
+        eidxs  = tf.random.uniform([args.batch], 4, 90000, tf.int32)
 
     # build fn
     if args.backend=='full':
