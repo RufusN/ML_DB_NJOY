@@ -13,8 +13,10 @@ import scipy.ndimage as ndimage
 # 1) User-defined parameters
 # ---------------------------
 E_min = 1e4 * 1e-6  # MeV (10 keV)
-E_max = 1e6 * 1e-6  # MeV (1 MeV)
+E_max = 3e4 * 1e-6  # MeV (1 MeV) 
+
 Analysis = False  # Set True to enable plotting
+only_integer = False
 
 # ---------------------------
 # Helper: load PyTables-style HDF5 into DataFrame
@@ -34,32 +36,27 @@ def load_h5_dataframe(file_path, group_name="data"):
 # ---------------------------
 # 2) Read the baseline HDF5 for T = 300 K
 # ---------------------------
-base_file_path = r"/Volumes/T7 Shield/NJOY/Fe56_data_250k/Fe56_300.0.h5"
-Base_Tval = 300.0
+base_file_path = r"./base_energy_grid_90k.h5"
 
 try:
-    data_base = load_h5_dataframe(base_file_path)
-except Exception as e:
-    print(f"Error reading baseline HDF5 file: {e}")
-    exit(1)
-
-print(f"\nProcessing baseline T = {Base_Tval} from {base_file_path}...")
-# Filter by temperature if column exists
-if "T" in data_base.columns:
-    subset_T = data_base[data_base["T"] == Base_Tval].copy()
-else:
-    subset_T = data_base.copy()
-# Apply energy range mask on ERG (MeV)
-mask = (subset_T["ERG"] >= E_min) & (subset_T["ERG"] <= E_max)
-subset_range = subset_T[mask].copy()
+    with h5py.File(base_file_path, 'r') as f:
+        keys = list(f.keys())
+        if not keys:
+            raise KeyError("No datasets found in base energy grid file")
+        dataset_name = keys[0]
+        subset_T = f[dataset_name][:]
+        mask = (subset_T >= E_min) & (subset_T <= E_max)
+        subset_range = subset_T[mask].copy()
 
 # Extract and sort baseline grid using original energy points
-Base_E = subset_range["ERG"].to_numpy()
-Base_xs = subset_range["XS"].to_numpy()
-sort_idx = np.argsort(Base_E)
-Base_E = Base_E[sort_idx]
-Base_xs = Base_xs[sort_idx]
-fs = len(Base_E)
+    Base_E = np.array(subset_range)
+    sort_idx = np.argsort(Base_E)
+    Base_E = Base_E[sort_idx]
+    fs = len(Base_E)
+    print(f"Loaded baseline energy grid from '{dataset_name}', length: {fs}")
+except Exception as e:
+    print(f"Error reading baseline energy grid file: {e}")
+    exit(1)
 print(f"Length of baseline energy grid: {fs}")
 
 # ---------------------------
@@ -79,13 +76,11 @@ for file_path in all_files:
         continue
 
     # Only consider integer temperatures
-    if not T_val.is_integer():
-        continue
-    T_val = int(T_val)
+    if only_integer:
+        if not T_val.is_integer():
+            T_val = int(T_val)
+            continue
 
-    # Skip the baseline file
-    if T_val == int(Base_Tval):
-        continue
 
     print(f"\nProcessing integer T = {T_val} from {file_path}...")
     try:
@@ -119,8 +114,8 @@ for file_path in all_files:
     # ---------------------------
     # 4) Prepare Sliding Window FFT (Spectrogram)
     # ---------------------------
-    window_samps = 4  # small window size
-    step_samps = 2    # small step size
+    window_samps = 81  # small window size
+    step_samps = 4    # small step size
     pad = window_samps
     padded_sig = np.pad(signal, (pad, pad), mode='constant', constant_values=0)
     frequencies = np.fft.rfftfreq(window_samps, d=1/fs)
@@ -135,7 +130,7 @@ for file_path in all_files:
     print(f"Spectrogram shape (freq_bins x time_bins): {spectrogram.shape}")
 
     # Save Spectrogram to HDF5
-    h5_filename = f'/Volumes/T7 Shield/NJOY/spectrograms/full_range/resolution1/spectrogram_T_{T_val}.h5'
+    h5_filename = f'/Volumes/T7 Shield/NJOY/spectrograms/small_range/resolution_4/spectrogram_T_{T_val}.h5'
     os.makedirs(os.path.dirname(h5_filename), exist_ok=True)
     with h5py.File(h5_filename, "w") as h5f:
         h5f.create_dataset("time_bins", data=time_bins)
